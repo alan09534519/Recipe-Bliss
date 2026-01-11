@@ -8,6 +8,14 @@ This is a **Couple's Recipe Sharing App** - a mobile-first web application for c
 
 Preferred communication style: Simple, everyday language.
 
+## Recent Changes (2026-01-11)
+
+- **PostgreSQL Database**: Migrated from in-memory storage to PostgreSQL for persistent data
+- **Object Storage**: Integrated Replit Object Storage for image uploads (up to 10MB)
+- **Delete Recipe**: Added delete functionality with confirmation dialog
+- **Edit Recipe**: Enhanced with cloud image upload support
+- **Image Upload**: Uses presigned URL flow for direct-to-cloud uploads
+
 ## System Architecture
 
 ### Frontend Architecture
@@ -17,6 +25,7 @@ Preferred communication style: Simple, everyday language.
 - **UI Components**: shadcn/ui (Radix UI primitives + Tailwind CSS)
 - **Styling**: Tailwind CSS with CSS variables for theming
 - **Build Tool**: Vite with custom plugins for Replit integration
+- **File Upload**: Uppy v5 with presigned URL upload flow
 
 **Design System**:
 - Typography: Playfair Display (headings), Inter/DM Sans (body)
@@ -36,16 +45,19 @@ Preferred communication style: Simple, everyday language.
 - `POST /api/recipes` - Create recipe
 - `PATCH /api/recipes/:id` - Update recipe
 - `DELETE /api/recipes/:id` - Delete recipe
+- `POST /api/uploads/request-url` - Get presigned upload URL
+- `GET /objects/:objectPath` - Serve uploaded files
 
 ### Data Storage
-- **ORM**: Drizzle ORM with PostgreSQL dialect
+- **Database**: PostgreSQL via Drizzle ORM
+- **Object Storage**: Replit Object Storage (Google Cloud Storage)
 - **Schema Location**: `shared/schema.ts`
 - **Validation**: Zod schemas via drizzle-zod
-- **Current State**: In-memory storage (`MemStorage`) with seeded sample recipes; database schema ready for PostgreSQL
+- **Storage Class**: `DatabaseStorage` in `server/storage.ts`
 
 **Data Models**:
 - `users`: id, username, password
-- `recipes`: id, name, imageUrl, ingredients (array), steps (array), servings, cookTime
+- `recipes`: id, name, imageUrl, ingredients (array), steps (array), servings, cookTime, category
 
 ### Project Structure
 ```
@@ -53,13 +65,14 @@ Preferred communication style: Simple, everyday language.
 │   └── src/
 │       ├── components/   # UI components
 │       ├── pages/        # Route pages
-│       ├── hooks/        # Custom React hooks
+│       ├── hooks/        # Custom React hooks (use-upload.ts)
 │       └── lib/          # Utilities
 ├── server/           # Express backend
 │   ├── index.ts      # Entry point
 │   ├── routes.ts     # API routes
-│   ├── storage.ts    # Data layer
-│   └── vite.ts       # Dev server integration
+│   ├── storage.ts    # Database storage layer
+│   ├── db.ts         # Database connection
+│   └── replit_integrations/  # Object storage integration
 ├── shared/           # Shared types/schemas
 └── script/           # Build scripts
 ```
@@ -72,11 +85,17 @@ Preferred communication style: Simple, everyday language.
 ## External Dependencies
 
 ### Database
-- **PostgreSQL**: Required for production (configured via `DATABASE_URL` environment variable)
+- **PostgreSQL**: Configured via `DATABASE_URL` environment variable
+- **Drizzle ORM**: Database ORM with type-safe queries
 - **Drizzle Kit**: Database migrations via `npm run db:push`
 
+### Object Storage
+- **Replit Object Storage**: Cloud file storage for images
+- **@google-cloud/storage**: GCS client for object operations
+- **Uppy v5**: Frontend file upload component
+
 ### UI Libraries
-- **Radix UI**: Full suite of accessible primitives (dialog, dropdown, toast, etc.)
+- **Radix UI**: Full suite of accessible primitives (dialog, dropdown, toast, alert-dialog, etc.)
 - **Lucide React**: Icon library
 - **Embla Carousel**: Carousel component
 - **React Day Picker**: Calendar/date picker
@@ -86,7 +105,3 @@ Preferred communication style: Simple, everyday language.
 ### Development
 - **Vite**: Dev server with HMR
 - **Replit Plugins**: Runtime error overlay, cartographer, dev banner
-
-### Session Management (Prepared)
-- **connect-pg-simple**: PostgreSQL session store (dependency installed)
-- **express-session**: Session middleware (dependency installed)

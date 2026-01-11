@@ -28,6 +28,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { ArrowLeft, Plus, Trash2, Image, Save, Loader2 } from "lucide-react";
 import { RECIPE_CATEGORIES, type Recipe } from "@shared/schema";
+import { useUpload } from "@/hooks/use-upload";
 
 const editRecipeSchema = z.object({
   name: z.string().min(1, "請輸入菜名"),
@@ -49,6 +50,25 @@ export default function EditRecipe() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageObjectPath, setImageObjectPath] = useState<string | null>(null);
+
+  const { uploadFile, isUploading } = useUpload({
+    onSuccess: (response) => {
+      setImageObjectPath(response.objectPath);
+      toast({
+        title: "上傳成功",
+        description: "圖片已成功上傳",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "上傳失敗",
+        description: error.message || "圖片上傳失敗，請稍後再試",
+        variant: "destructive",
+      });
+      setImagePreview(null);
+    },
+  });
 
   const { data: recipe, isLoading, error } = useQuery<Recipe>({
     queryKey: ["/api/recipes", params.id],
@@ -77,7 +97,10 @@ export default function EditRecipe() {
         ingredients: recipe.ingredients.map(i => ({ value: i })),
         steps: recipe.steps.map(s => ({ value: s })),
       });
-      setImagePreview(recipe.imageUrl || null);
+      if (recipe.imageUrl) {
+        setImagePreview(recipe.imageUrl);
+        setImageObjectPath(recipe.imageUrl);
+      }
     }
   }, [recipe, form]);
 
@@ -100,7 +123,7 @@ export default function EditRecipe() {
         cookTime: data.cookTime || null,
         ingredients: data.ingredients.map(i => i.value),
         steps: data.steps.map(s => s.value),
-        imageUrl: imagePreview,
+        imageUrl: imageObjectPath,
       };
       const response = await apiRequest("PATCH", `/api/recipes/${params.id}`, payload);
       return response.json();
@@ -123,14 +146,14 @@ export default function EditRecipe() {
     },
   });
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     
-    if (file.size > 5 * 1024 * 1024) {
+    if (file.size > 10 * 1024 * 1024) {
       toast({
         title: "檔案太大",
-        description: "請選擇小於 5MB 的圖片",
+        description: "請選擇小於 10MB 的圖片",
         variant: "destructive",
       });
       e.target.value = "";
@@ -151,15 +174,9 @@ export default function EditRecipe() {
     reader.onloadend = () => {
       setImagePreview(reader.result as string);
     };
-    reader.onerror = () => {
-      toast({
-        title: "讀取失敗",
-        description: "無法讀取圖片，請重試",
-        variant: "destructive",
-      });
-      e.target.value = "";
-    };
     reader.readAsDataURL(file);
+
+    await uploadFile(file);
   };
 
   const onSubmit = (data: EditRecipeForm) => {
@@ -220,7 +237,12 @@ export default function EditRecipe() {
                     }
                   }}
                 >
-                  {imagePreview ? (
+                  {isUploading ? (
+                    <div className="text-muted-foreground">
+                      <Loader2 className="w-12 h-12 mx-auto mb-3 animate-spin" />
+                      <p className="text-sm">上傳中...</p>
+                    </div>
+                  ) : imagePreview ? (
                     <div className="relative">
                       <img 
                         src={imagePreview} 
@@ -236,6 +258,7 @@ export default function EditRecipe() {
                           e.stopPropagation();
                           e.preventDefault();
                           setImagePreview(null);
+                          setImageObjectPath(null);
                         }}
                         data-testid="button-remove-image"
                       >
@@ -246,7 +269,7 @@ export default function EditRecipe() {
                     <div className="text-muted-foreground">
                       <Image className="w-12 h-12 mx-auto mb-3 opacity-50" />
                       <p className="text-sm">點擊或按 Enter 上傳照片</p>
-                      <p className="text-xs mt-1">支援 JPG、PNG，最大 5MB</p>
+                      <p className="text-xs mt-1">支援 JPG、PNG、WebP，最大 10MB</p>
                     </div>
                   )}
                   <input
@@ -255,6 +278,7 @@ export default function EditRecipe() {
                     accept="image/jpeg,image/png,image/webp"
                     className="sr-only"
                     onChange={handleImageUpload}
+                    disabled={isUploading}
                     data-testid="input-image-upload"
                   />
                 </label>
@@ -465,7 +489,7 @@ export default function EditRecipe() {
               <Button 
                 type="submit" 
                 className="w-full"
-                disabled={updateRecipeMutation.isPending}
+                disabled={updateRecipeMutation.isPending || isUploading}
                 data-testid="button-save-recipe"
               >
                 {updateRecipeMutation.isPending ? (

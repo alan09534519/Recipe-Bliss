@@ -26,8 +26,9 @@ import {
 } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { ArrowLeft, Plus, Trash2, GripVertical, Upload, Image } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, GripVertical, Image, Loader2 } from "lucide-react";
 import { RECIPE_CATEGORIES } from "@shared/schema";
+import { useUpload } from "@/hooks/use-upload";
 
 const addRecipeSchema = z.object({
   name: z.string().min(1, "請輸入菜名"),
@@ -48,6 +49,25 @@ export default function AddRecipe() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageObjectPath, setImageObjectPath] = useState<string | null>(null);
+  
+  const { uploadFile, isUploading } = useUpload({
+    onSuccess: (response) => {
+      setImageObjectPath(response.objectPath);
+      toast({
+        title: "上傳成功",
+        description: "圖片已成功上傳",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "上傳失敗",
+        description: error.message || "圖片上傳失敗，請稍後再試",
+        variant: "destructive",
+      });
+      setImagePreview(null);
+    },
+  });
 
   const form = useForm<AddRecipeForm>({
     resolver: zodResolver(addRecipeSchema),
@@ -80,7 +100,7 @@ export default function AddRecipe() {
         cookTime: data.cookTime || null,
         ingredients: data.ingredients.map(i => i.value),
         steps: data.steps.map(s => s.value),
-        imageUrl: imagePreview,
+        imageUrl: imageObjectPath,
       };
       const response = await apiRequest("POST", "/api/recipes", payload);
       return response.json();
@@ -102,14 +122,14 @@ export default function AddRecipe() {
     },
   });
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     
-    if (file.size > 5 * 1024 * 1024) {
+    if (file.size > 10 * 1024 * 1024) {
       toast({
         title: "檔案太大",
-        description: "請選擇小於 5MB 的圖片",
+        description: "請選擇小於 10MB 的圖片",
         variant: "destructive",
       });
       e.target.value = "";
@@ -130,15 +150,9 @@ export default function AddRecipe() {
     reader.onloadend = () => {
       setImagePreview(reader.result as string);
     };
-    reader.onerror = () => {
-      toast({
-        title: "讀取失敗",
-        description: "無法讀取圖片，請重試",
-        variant: "destructive",
-      });
-      e.target.value = "";
-    };
     reader.readAsDataURL(file);
+
+    await uploadFile(file);
   };
 
   const onSubmit = (data: AddRecipeForm) => {
@@ -180,7 +194,12 @@ export default function AddRecipe() {
                     }
                   }}
                 >
-                  {imagePreview ? (
+                  {isUploading ? (
+                    <div className="text-muted-foreground">
+                      <Loader2 className="w-12 h-12 mx-auto mb-3 animate-spin" />
+                      <p className="text-sm">上傳中...</p>
+                    </div>
+                  ) : imagePreview ? (
                     <div className="relative">
                       <img 
                         src={imagePreview} 
@@ -196,6 +215,7 @@ export default function AddRecipe() {
                           e.stopPropagation();
                           e.preventDefault();
                           setImagePreview(null);
+                          setImageObjectPath(null);
                         }}
                         data-testid="button-remove-image"
                       >
@@ -206,7 +226,7 @@ export default function AddRecipe() {
                     <div className="text-muted-foreground">
                       <Image className="w-12 h-12 mx-auto mb-3 opacity-50" />
                       <p className="text-sm">點擊或按 Enter 上傳照片</p>
-                      <p className="text-xs mt-1">支援 JPG、PNG，最大 5MB</p>
+                      <p className="text-xs mt-1">支援 JPG、PNG、WebP，最大 10MB</p>
                     </div>
                   )}
                   <input
@@ -215,6 +235,7 @@ export default function AddRecipe() {
                     accept="image/jpeg,image/png,image/webp"
                     className="sr-only"
                     onChange={handleImageUpload}
+                    disabled={isUploading}
                     data-testid="input-image-upload"
                   />
                 </label>
@@ -427,7 +448,7 @@ export default function AddRecipe() {
               type="submit" 
               className="w-full" 
               size="lg"
-              disabled={createRecipeMutation.isPending}
+              disabled={createRecipeMutation.isPending || isUploading}
               data-testid="button-submit-recipe"
             >
               {createRecipeMutation.isPending ? "儲存中..." : "儲存食譜"}

@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertRecipeSchema } from "@shared/schema";
+import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 
 const updateRecipeSchema = insertRecipeSchema.partial();
 
@@ -9,6 +10,8 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  
+  registerObjectStorageRoutes(app);
   
   app.get("/api/recipes", async (_req, res) => {
     const recipes = await storage.getAllRecipes();
