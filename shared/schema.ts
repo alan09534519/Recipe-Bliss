@@ -31,7 +31,12 @@ export const recipes = pgTable("recipes", {
   category: text("category"),
 });
 
-export const insertRecipeSchema = createInsertSchema(recipes).omit({
+export const insertRecipeSchema = createInsertSchema(recipes, {
+  name: z.string().min(1, "菜名不能為空"),
+  ingredients: z.array(z.string().min(1)).min(1, "至少需要一個食材"),
+  steps: z.array(z.string().min(1)).min(1, "至少需要一個步驟"),
+  servings: z.number().int().min(1).max(20).optional().default(2),
+}).omit({
   id: true,
 });
 
