@@ -43,7 +43,9 @@ const addRecipeSchema = z.object({
   steps: z.array(z.object({
     value: z.string().min(1, "請輸入步驟")
   })).min(1, "請至少輸入一個步驟"),
-  sourceUrl: z.string().url("請輸入有效的網址").optional().or(z.literal("")),
+  sourceUrls: z.array(z.object({
+    value: z.string().url("請輸入有效的網址").or(z.literal(""))
+  })),
 });
 
 type AddRecipeForm = z.infer<typeof addRecipeSchema>;
@@ -75,7 +77,7 @@ export default function AddRecipe() {
       cookTime: "",
       ingredients: [{ value: "" }],
       steps: [{ value: "" }],
-      sourceUrl: "",
+      sourceUrls: [{ value: "" }],
     },
   });
 
@@ -89,6 +91,11 @@ export default function AddRecipe() {
     name: "steps",
   });
 
+  const sourceUrlsArray = useFieldArray({
+    control: form.control,
+    name: "sourceUrls",
+  });
+
   const isAnyImageUploading = images.some(img => img.uploading);
 
   const createRecipeMutation = useMutation({
@@ -96,6 +103,10 @@ export default function AddRecipe() {
       const imageUrls = images
         .filter(img => img.objectPath)
         .map(img => img.objectPath as string);
+      
+      const sourceUrls = data.sourceUrls
+        .map(s => s.value.trim())
+        .filter(s => s.length > 0);
       
       const payload = {
         name: data.name,
@@ -105,7 +116,7 @@ export default function AddRecipe() {
         ingredients: data.ingredients.map(i => i.value),
         steps: data.steps.map(s => s.value),
         imageUrls,
-        sourceUrl: data.sourceUrl || null,
+        sourceUrls,
       };
       const response = await apiRequest("POST", "/api/recipes", payload);
       return response.json();
@@ -492,30 +503,59 @@ export default function AddRecipe() {
 
             <Card>
               <CardContent className="p-6">
-                <FormField
-                  control={form.control}
-                  name="sourceUrl"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="flex items-center gap-2">
-                        <Link className="w-4 h-4" />
-                        食譜來源
-                      </FormLabel>
-                      <FormControl>
-                        <Input 
-                          type="url"
-                          placeholder="例如：https://youtube.com/watch?v=..." 
-                          {...field}
-                          data-testid="input-source-url"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                      <p className="text-xs text-muted-foreground">
-                        可填入原始食譜的影片或網誌連結
-                      </p>
-                    </FormItem>
-                  )}
-                />
+                <div className="flex items-center justify-between mb-4">
+                  <Label className="text-base font-semibold flex items-center gap-2">
+                    <Link className="w-4 h-4" />
+                    食譜來源
+                  </Label>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => sourceUrlsArray.append({ value: "" })}
+                    data-testid="button-add-source-url"
+                  >
+                    <Plus className="w-4 h-4 mr-1" />
+                    新增
+                  </Button>
+                </div>
+                <div className="space-y-3">
+                  {sourceUrlsArray.fields.map((field, index) => (
+                    <div key={field.id} className="flex items-center gap-2">
+                      <FormField
+                        control={form.control}
+                        name={`sourceUrls.${index}.value`}
+                        render={({ field }) => (
+                          <FormItem className="flex-1">
+                            <FormControl>
+                              <Input 
+                                type="url"
+                                placeholder="例如：https://youtube.com/watch?v=..." 
+                                {...field}
+                                data-testid={`input-source-url-${index}`}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      {sourceUrlsArray.fields.length > 1 && (
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => sourceUrlsArray.remove(index)}
+                          data-testid={`button-remove-source-url-${index}`}
+                        >
+                          <Trash2 className="w-4 h-4 text-muted-foreground" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground mt-3">
+                  可填入原始食譜的影片或網誌連結
+                </p>
               </CardContent>
             </Card>
 

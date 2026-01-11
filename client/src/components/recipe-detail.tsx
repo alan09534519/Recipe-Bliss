@@ -317,20 +317,25 @@ export function RecipeDetail({ recipe, onBack }: RecipeDetailProps) {
           </ol>
         </div>
 
-        {recipe.sourceUrl && (
+        {recipe.sourceUrls && recipe.sourceUrls.length > 0 && (
           <Card>
             <CardContent className="p-6">
               <h2 className="text-lg font-semibold mb-3">食譜來源</h2>
-              <a
-                href={recipe.sourceUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 text-primary hover:underline break-all"
-                data-testid="link-source-url"
-              >
-                <ExternalLink className="w-4 h-4 flex-shrink-0" />
-                <span className="line-clamp-1">{recipe.sourceUrl}</span>
-              </a>
+              <div className="space-y-2">
+                {recipe.sourceUrls.map((url, index) => (
+                  <a
+                    key={index}
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 text-primary hover:underline break-all"
+                    data-testid={`link-source-url-${index}`}
+                  >
+                    <ExternalLink className="w-4 h-4 flex-shrink-0" />
+                    <span className="line-clamp-1">{url}</span>
+                  </a>
+                ))}
+              </div>
             </CardContent>
           </Card>
         )}

@@ -14,7 +14,9 @@ Preferred communication style: Simple, everyday language.
 - **Object Storage**: Integrated Replit Object Storage for image uploads (up to 10MB)
 - **Delete Recipe**: Added delete functionality with confirmation dialog
 - **Edit Recipe**: Enhanced with cloud image upload support
-- **Image Upload**: Uses presigned URL flow for direct-to-cloud uploads
+- **Multi-Image Upload**: Support up to 5 images per recipe with unique ID tracking for concurrent uploads
+- **Touch Swipe**: Recipe detail page supports swipe gestures for image navigation on mobile
+- **Multiple Source URLs**: Recipes can have multiple source URLs (video/blog links) with dynamic add/remove
 
 ## System Architecture
 
@@ -57,7 +59,7 @@ Preferred communication style: Simple, everyday language.
 
 **Data Models**:
 - `users`: id, username, password
-- `recipes`: id, name, imageUrl, ingredients (array), steps (array), servings, cookTime, category
+- `recipes`: id, name, imageUrls (text[]), ingredients (text[]), steps (text[]), servings, cookTime, category, sourceUrls (text[])
 
 ### Project Structure
 ```

@@ -43,7 +43,9 @@ const editRecipeSchema = z.object({
   steps: z.array(z.object({
     value: z.string().min(1, "請輸入步驟")
   })).min(1, "請至少輸入一個步驟"),
-  sourceUrl: z.string().url("請輸入有效的網址").optional().or(z.literal("")),
+  sourceUrls: z.array(z.object({
+    value: z.string().url("請輸入有效的網址").or(z.literal(""))
+  })),
 });
 
 type EditRecipeForm = z.infer<typeof editRecipeSchema>;
@@ -82,12 +84,16 @@ export default function EditRecipe() {
       cookTime: "",
       ingredients: [{ value: "" }],
       steps: [{ value: "" }],
-      sourceUrl: "",
+      sourceUrls: [{ value: "" }],
     },
   });
 
   useEffect(() => {
     if (recipe) {
+      const existingSourceUrls = recipe.sourceUrls && recipe.sourceUrls.length > 0
+        ? recipe.sourceUrls.map(url => ({ value: url }))
+        : [{ value: "" }];
+      
       form.reset({
         name: recipe.name,
         category: recipe.category || undefined,
@@ -95,7 +101,7 @@ export default function EditRecipe() {
         cookTime: recipe.cookTime || "",
         ingredients: recipe.ingredients.map(i => ({ value: i })),
         steps: recipe.steps.map(s => ({ value: s })),
-        sourceUrl: recipe.sourceUrl || "",
+        sourceUrls: existingSourceUrls,
       });
       
       if (recipe.imageUrls && recipe.imageUrls.length > 0) {
@@ -121,6 +127,11 @@ export default function EditRecipe() {
     name: "steps",
   });
 
+  const sourceUrlsArray = useFieldArray({
+    control: form.control,
+    name: "sourceUrls",
+  });
+
   const isAnyImageUploading = images.some(img => img.uploading);
 
   const updateRecipeMutation = useMutation({
@@ -128,6 +139,10 @@ export default function EditRecipe() {
       const imageUrls = images
         .filter(img => img.objectPath)
         .map(img => img.objectPath as string);
+      
+      const sourceUrls = data.sourceUrls
+        .map(s => s.value.trim())
+        .filter(s => s.length > 0);
       
       const payload = {
         name: data.name,
@@ -137,7 +152,7 @@ export default function EditRecipe() {
         ingredients: data.ingredients.map(i => i.value),
         steps: data.steps.map(s => s.value),
         imageUrls,
-        sourceUrl: data.sourceUrl || null,
+        sourceUrls,
       };
       const response = await apiRequest("PATCH", `/api/recipes/${params.id}`, payload);
       return response.json();
@@ -542,30 +557,59 @@ export default function EditRecipe() {
 
             <Card>
               <CardContent className="p-6">
-                <FormField
-                  control={form.control}
-                  name="sourceUrl"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="flex items-center gap-2">
-                        <Link className="w-4 h-4" />
-                        食譜來源
-                      </FormLabel>
-                      <FormControl>
-                        <Input 
-                          type="url"
-                          placeholder="例如：https://youtube.com/watch?v=..." 
-                          {...field}
-                          data-testid="input-source-url"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                      <p className="text-xs text-muted-foreground">
-                        可填入原始食譜的影片或網誌連結
-                      </p>
-                    </FormItem>
-                  )}
-                />
+                <div className="flex items-center justify-between mb-4">
+                  <Label className="text-base font-semibold flex items-center gap-2">
+                    <Link className="w-4 h-4" />
+                    食譜來源
+                  </Label>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => sourceUrlsArray.append({ value: "" })}
+                    data-testid="button-add-source-url"
+                  >
+                    <Plus className="w-4 h-4 mr-1" />
+                    新增
+                  </Button>
+                </div>
+                <div className="space-y-3">
+                  {sourceUrlsArray.fields.map((field, index) => (
+                    <div key={field.id} className="flex items-center gap-2">
+                      <FormField
+                        control={form.control}
+                        name={`sourceUrls.${index}.value`}
+                        render={({ field }) => (
+                          <FormItem className="flex-1">
+                            <FormControl>
+                              <Input 
+                                type="url"
+                                placeholder="例如：https://youtube.com/watch?v=..." 
+                                {...field}
+                                data-testid={`input-source-url-${index}`}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      {sourceUrlsArray.fields.length > 1 && (
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => sourceUrlsArray.remove(index)}
+                          data-testid={`button-remove-source-url-${index}`}
+                        >
+                          <Trash2 className="w-4 h-4 text-muted-foreground" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground mt-3">
+                  可填入原始食譜的影片或網誌連結
+                </p>
               </CardContent>
             </Card>
 

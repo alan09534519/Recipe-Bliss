@@ -29,7 +29,7 @@ export const recipes = pgTable("recipes", {
   servings: integer("servings").default(2),
   cookTime: text("cook_time"),
   category: text("category"),
-  sourceUrl: text("source_url"),
+  sourceUrls: text("source_urls").array().default(sql`'{}'::text[]`),
 });
 
 export const insertRecipeSchema = createInsertSchema(recipes, {
@@ -38,7 +38,7 @@ export const insertRecipeSchema = createInsertSchema(recipes, {
   ingredients: z.array(z.string().min(1)).min(1, "至少需要一個食材"),
   steps: z.array(z.string().min(1)).min(1, "至少需要一個步驟"),
   servings: z.number().int().min(1).max(20).optional().default(2),
-  sourceUrl: z.string().url("請輸入有效的網址").optional().nullable(),
+  sourceUrls: z.array(z.string().url("請輸入有效的網址")).max(10, "最多只能新增10個來源網址").optional().default([]),
 }).omit({
   id: true,
 });
