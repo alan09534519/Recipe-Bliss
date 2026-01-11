@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ArrowLeft, Clock, Users, Pencil, Trash2, Loader2, ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
 import type { Recipe } from "@shared/schema";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useLocation } from "wouter";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -30,10 +30,13 @@ export function RecipeDetail({ recipe, onBack }: RecipeDetailProps) {
   const { toast } = useToast();
   const [checkedIngredients, setCheckedIngredients] = useState<Set<number>>(new Set());
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const touchStartX = useRef<number | null>(null);
+  const touchEndX = useRef<number | null>(null);
 
   const imageUrls = recipe.imageUrls || [];
   const hasImages = imageUrls.length > 0;
   const hasMultipleImages = imageUrls.length > 1;
+  const minSwipeDistance = 50;
 
   const deleteRecipeMutation = useMutation({
     mutationFn: async () => {
@@ -80,15 +83,46 @@ export function RecipeDetail({ recipe, onBack }: RecipeDetailProps) {
     return url.startsWith('/objects/') ? url : `/objects/${url}`;
   };
 
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+    touchEndX.current = null;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    touchEndX.current = e.touches[0].clientX;
+  };
+
+  const handleTouchEnd = () => {
+    if (!touchStartX.current || !touchEndX.current) return;
+    
+    const distance = touchStartX.current - touchEndX.current;
+    const isSwipeLeft = distance > minSwipeDistance;
+    const isSwipeRight = distance < -minSwipeDistance;
+    
+    if (isSwipeLeft && hasMultipleImages) {
+      goToNextImage();
+    } else if (isSwipeRight && hasMultipleImages) {
+      goToPreviousImage();
+    }
+    
+    touchStartX.current = null;
+    touchEndX.current = null;
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <div className="relative">
         {hasImages ? (
-          <div className="h-64 md:h-96 w-full overflow-hidden relative">
+          <div 
+            className="h-64 md:h-96 w-full overflow-hidden relative touch-pan-y"
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+          >
             <img
               src={getCurrentImageUrl() || ""}
               alt={`${recipe.name} 的照片 ${currentImageIndex + 1}`}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover select-none pointer-events-none"
             />
             
             {hasMultipleImages && (
