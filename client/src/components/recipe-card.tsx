@@ -1,6 +1,6 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Clock, Users } from "lucide-react";
+import { Clock, Users, Images } from "lucide-react";
 import type { Recipe } from "@shared/schema";
 
 interface RecipeCardProps {
@@ -9,6 +9,12 @@ interface RecipeCardProps {
 }
 
 export function RecipeCard({ recipe, onClick }: RecipeCardProps) {
+  const imageUrls = recipe.imageUrls || [];
+  const primaryImage = imageUrls.length > 0 
+    ? (imageUrls[0].startsWith('/objects/') ? imageUrls[0] : `/objects/${imageUrls[0]}`)
+    : null;
+  const hasMultipleImages = imageUrls.length > 1;
+
   return (
     <Card 
       className="overflow-visible cursor-pointer hover-elevate active-elevate-2 transition-transform duration-200"
@@ -17,9 +23,9 @@ export function RecipeCard({ recipe, onClick }: RecipeCardProps) {
     >
       <div className="relative">
         <div className="aspect-[4/3] w-full overflow-hidden rounded-t-md">
-          {recipe.imageUrl ? (
+          {primaryImage ? (
             <img
-              src={recipe.imageUrl}
+              src={primaryImage}
               alt={`${recipe.name} 的照片`}
               className="w-full h-full object-cover"
               loading="lazy"
@@ -45,6 +51,12 @@ export function RecipeCard({ recipe, onClick }: RecipeCardProps) {
             </div>
           )}
         </div>
+        {hasMultipleImages && (
+          <div className="absolute top-2 right-2 bg-black/60 text-white px-2 py-1 rounded-md flex items-center gap-1 text-xs">
+            <Images className="w-3 h-3" />
+            <span>{imageUrls.length}</span>
+          </div>
+        )}
       </div>
       <CardContent className="p-4">
         <h3 

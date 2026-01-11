@@ -12,7 +12,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Clock, Users, Pencil, Trash2, Loader2 } from "lucide-react";
+import { ArrowLeft, Clock, Users, Pencil, Trash2, Loader2, ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
 import type { Recipe } from "@shared/schema";
 import { useState } from "react";
 import { useLocation } from "wouter";
@@ -29,6 +29,11 @@ export function RecipeDetail({ recipe, onBack }: RecipeDetailProps) {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [checkedIngredients, setCheckedIngredients] = useState<Set<number>>(new Set());
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
+  const imageUrls = recipe.imageUrls || [];
+  const hasImages = imageUrls.length > 0;
+  const hasMultipleImages = imageUrls.length > 1;
 
   const deleteRecipeMutation = useMutation({
     mutationFn: async () => {
@@ -61,16 +66,66 @@ export function RecipeDetail({ recipe, onBack }: RecipeDetailProps) {
     setCheckedIngredients(newChecked);
   };
 
+  const goToPreviousImage = () => {
+    setCurrentImageIndex((prev) => (prev === 0 ? imageUrls.length - 1 : prev - 1));
+  };
+
+  const goToNextImage = () => {
+    setCurrentImageIndex((prev) => (prev === imageUrls.length - 1 ? 0 : prev + 1));
+  };
+
+  const getCurrentImageUrl = () => {
+    if (!hasImages) return null;
+    const url = imageUrls[currentImageIndex];
+    return url.startsWith('/objects/') ? url : `/objects/${url}`;
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <div className="relative">
-        {recipe.imageUrl ? (
-          <div className="h-64 md:h-96 w-full overflow-hidden">
+        {hasImages ? (
+          <div className="h-64 md:h-96 w-full overflow-hidden relative">
             <img
-              src={recipe.imageUrl}
-              alt={`${recipe.name} 的照片`}
+              src={getCurrentImageUrl() || ""}
+              alt={`${recipe.name} 的照片 ${currentImageIndex + 1}`}
               className="w-full h-full object-cover"
             />
+            
+            {hasMultipleImages && (
+              <>
+                <Button
+                  size="icon"
+                  variant="secondary"
+                  className="absolute left-4 top-1/2 -translate-y-1/2 bg-background/80 backdrop-blur-sm"
+                  onClick={goToPreviousImage}
+                  data-testid="button-prev-image"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </Button>
+                <Button
+                  size="icon"
+                  variant="secondary"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 bg-background/80 backdrop-blur-sm"
+                  onClick={goToNextImage}
+                  data-testid="button-next-image"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </Button>
+                
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
+                  {imageUrls.map((_, index) => (
+                    <button
+                      key={index}
+                      className={`w-2 h-2 rounded-full transition-colors ${
+                        index === currentImageIndex ? "bg-white" : "bg-white/50"
+                      }`}
+                      onClick={() => setCurrentImageIndex(index)}
+                      data-testid={`button-image-dot-${index}`}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         ) : (
           <div className="h-64 md:h-96 w-full bg-muted flex items-center justify-center">
@@ -209,7 +264,7 @@ export function RecipeDetail({ recipe, onBack }: RecipeDetailProps) {
           </CardContent>
         </Card>
 
-        <div className="space-y-6">
+        <div className="space-y-6 mb-6">
           <h2 className="text-xl font-semibold">烹飪步驟</h2>
           <ol className="space-y-4">
             {recipe.steps.map((step, index) => (
@@ -227,6 +282,24 @@ export function RecipeDetail({ recipe, onBack }: RecipeDetailProps) {
             ))}
           </ol>
         </div>
+
+        {recipe.sourceUrl && (
+          <Card>
+            <CardContent className="p-6">
+              <h2 className="text-lg font-semibold mb-3">食譜來源</h2>
+              <a
+                href={recipe.sourceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 text-primary hover:underline break-all"
+                data-testid="link-source-url"
+              >
+                <ExternalLink className="w-4 h-4 flex-shrink-0" />
+                <span className="line-clamp-1">{recipe.sourceUrl}</span>
+              </a>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );

@@ -26,9 +26,11 @@ import {
 } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { ArrowLeft, Plus, Trash2, Image, Save, Loader2 } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Image, Save, Loader2, X, Link } from "lucide-react";
 import { RECIPE_CATEGORIES, type Recipe } from "@shared/schema";
 import { useUpload } from "@/hooks/use-upload";
+
+const MAX_IMAGES = 5;
 
 const editRecipeSchema = z.object({
   name: z.string().min(1, "請輸入菜名"),
@@ -41,34 +43,30 @@ const editRecipeSchema = z.object({
   steps: z.array(z.object({
     value: z.string().min(1, "請輸入步驟")
   })).min(1, "請至少輸入一個步驟"),
+  sourceUrl: z.string().url("請輸入有效的網址").optional().or(z.literal("")),
 });
 
 type EditRecipeForm = z.infer<typeof editRecipeSchema>;
+
+interface ImageItem {
+  id: string;
+  preview: string;
+  objectPath: string | null;
+  uploading: boolean;
+  isExisting?: boolean;
+}
+
+function generateId(): string {
+  return Math.random().toString(36).substring(2, 15);
+}
 
 export default function EditRecipe() {
   const params = useParams<{ id: string }>();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [imageObjectPath, setImageObjectPath] = useState<string | null>(null);
+  const [images, setImages] = useState<ImageItem[]>([]);
 
-  const { uploadFile, isUploading } = useUpload({
-    onSuccess: (response) => {
-      setImageObjectPath(response.objectPath);
-      toast({
-        title: "上傳成功",
-        description: "圖片已成功上傳",
-      });
-    },
-    onError: (error) => {
-      toast({
-        title: "上傳失敗",
-        description: error.message || "圖片上傳失敗，請稍後再試",
-        variant: "destructive",
-      });
-      setImagePreview(null);
-    },
-  });
+  const { uploadFile } = useUpload();
 
   const { data: recipe, isLoading, error } = useQuery<Recipe>({
     queryKey: ["/api/recipes", params.id],
@@ -84,6 +82,7 @@ export default function EditRecipe() {
       cookTime: "",
       ingredients: [{ value: "" }],
       steps: [{ value: "" }],
+      sourceUrl: "",
     },
   });
 
@@ -96,10 +95,18 @@ export default function EditRecipe() {
         cookTime: recipe.cookTime || "",
         ingredients: recipe.ingredients.map(i => ({ value: i })),
         steps: recipe.steps.map(s => ({ value: s })),
+        sourceUrl: recipe.sourceUrl || "",
       });
-      if (recipe.imageUrl) {
-        setImagePreview(recipe.imageUrl);
-        setImageObjectPath(recipe.imageUrl);
+      
+      if (recipe.imageUrls && recipe.imageUrls.length > 0) {
+        const existingImages: ImageItem[] = recipe.imageUrls.map((url, index) => ({
+          id: `existing-${index}`,
+          preview: url.startsWith('/objects/') ? url : `/objects/${url}`,
+          objectPath: url,
+          uploading: false,
+          isExisting: true,
+        }));
+        setImages(existingImages);
       }
     }
   }, [recipe, form]);
@@ -114,8 +121,14 @@ export default function EditRecipe() {
     name: "steps",
   });
 
+  const isAnyImageUploading = images.some(img => img.uploading);
+
   const updateRecipeMutation = useMutation({
     mutationFn: async (data: EditRecipeForm) => {
+      const imageUrls = images
+        .filter(img => img.objectPath)
+        .map(img => img.objectPath as string);
+      
       const payload = {
         name: data.name,
         category: data.category || null,
@@ -123,7 +136,8 @@ export default function EditRecipe() {
         cookTime: data.cookTime || null,
         ingredients: data.ingredients.map(i => i.value),
         steps: data.steps.map(s => s.value),
-        imageUrl: imageObjectPath,
+        imageUrls,
+        sourceUrl: data.sourceUrl || null,
       };
       const response = await apiRequest("PATCH", `/api/recipes/${params.id}`, payload);
       return response.json();
@@ -147,36 +161,78 @@ export default function EditRecipe() {
   });
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const remainingSlots = MAX_IMAGES - images.length;
+    if (remainingSlots <= 0) {
+      toast({
+        title: "已達上限",
+        description: `最多只能上傳 ${MAX_IMAGES} 張圖片`,
+        variant: "destructive",
+      });
+      e.target.value = "";
+      return;
+    }
+
+    const filesToUpload = Array.from(files).slice(0, remainingSlots);
     
-    if (file.size > 10 * 1024 * 1024) {
-      toast({
-        title: "檔案太大",
-        description: "請選擇小於 10MB 的圖片",
-        variant: "destructive",
-      });
-      e.target.value = "";
-      return;
+    for (const file of filesToUpload) {
+      if (file.size > 10 * 1024 * 1024) {
+        toast({
+          title: "檔案太大",
+          description: `${file.name} 超過 10MB，已跳過`,
+          variant: "destructive",
+        });
+        continue;
+      }
+
+      if (!file.type.startsWith("image/")) {
+        toast({
+          title: "檔案格式錯誤",
+          description: `${file.name} 不是圖片檔案，已跳過`,
+          variant: "destructive",
+        });
+        continue;
+      }
+
+      const imageId = generateId();
+      const reader = new FileReader();
+      
+      reader.onloadend = () => {
+        const newImage: ImageItem = {
+          id: imageId,
+          preview: reader.result as string,
+          objectPath: null,
+          uploading: true,
+        };
+        setImages(prev => [...prev, newImage]);
+        
+        uploadFile(file).then(response => {
+          if (response) {
+            setImages(prev => prev.map(img => 
+              img.id === imageId 
+                ? { ...img, objectPath: response.objectPath, uploading: false }
+                : img
+            ));
+          } else {
+            setImages(prev => prev.filter(img => img.id !== imageId));
+            toast({
+              title: "上傳失敗",
+              description: `${file.name} 上傳失敗`,
+              variant: "destructive",
+            });
+          }
+        });
+      };
+      reader.readAsDataURL(file);
     }
 
-    if (!file.type.startsWith("image/")) {
-      toast({
-        title: "檔案格式錯誤",
-        description: "請選擇圖片檔案（JPG、PNG、WebP）",
-        variant: "destructive",
-      });
-      e.target.value = "";
-      return;
-    }
+    e.target.value = "";
+  };
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setImagePreview(reader.result as string);
-    };
-    reader.readAsDataURL(file);
-
-    await uploadFile(file);
+  const removeImage = (imageId: string) => {
+    setImages(prev => prev.filter(img => img.id !== imageId));
   };
 
   const onSubmit = (data: EditRecipeForm) => {
@@ -225,63 +281,62 @@ export default function EditRecipe() {
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <Card>
               <CardContent className="p-6">
-                <Label htmlFor="image-upload-edit" className="text-base font-semibold mb-4 block">食譜照片</Label>
-                <label 
-                  htmlFor="image-upload-edit"
-                  className="block border-2 border-dashed rounded-md p-8 text-center cursor-pointer hover-elevate transition-colors focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      document.getElementById("image-upload-edit")?.click();
-                    }
-                  }}
-                >
-                  {isUploading ? (
-                    <div className="text-muted-foreground">
-                      <Loader2 className="w-12 h-12 mx-auto mb-3 animate-spin" />
-                      <p className="text-sm">上傳中...</p>
-                    </div>
-                  ) : imagePreview ? (
-                    <div className="relative">
+                <div className="flex items-center justify-between mb-4">
+                  <Label className="text-base font-semibold">食譜照片</Label>
+                  <span className="text-sm text-muted-foreground">{images.length}/{MAX_IMAGES}</span>
+                </div>
+                
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {images.map((image, index) => (
+                    <div 
+                      key={image.id} 
+                      className="relative aspect-square rounded-md overflow-hidden border bg-muted"
+                    >
                       <img 
-                        src={imagePreview} 
-                        alt="預覽" 
-                        className="max-h-64 mx-auto rounded-md object-cover"
+                        src={image.preview} 
+                        alt={`照片 ${index + 1}`}
+                        className="w-full h-full object-cover"
                       />
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="secondary"
-                        className="absolute top-2 right-2"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          e.preventDefault();
-                          setImagePreview(null);
-                          setImageObjectPath(null);
-                        }}
-                        data-testid="button-remove-image"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                      {image.uploading ? (
+                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                          <Loader2 className="w-6 h-6 animate-spin text-white" />
+                        </div>
+                      ) : (
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="secondary"
+                          className="absolute top-1 right-1 h-7 w-7"
+                          onClick={() => removeImage(image.id)}
+                          data-testid={`button-remove-image-${index}`}
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      )}
                     </div>
-                  ) : (
-                    <div className="text-muted-foreground">
-                      <Image className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                      <p className="text-sm">點擊或按 Enter 上傳照片</p>
-                      <p className="text-xs mt-1">支援 JPG、PNG、WebP，最大 10MB</p>
-                    </div>
+                  ))}
+                  
+                  {images.length < MAX_IMAGES && (
+                    <label 
+                      htmlFor="image-upload-edit"
+                      className="aspect-square border-2 border-dashed rounded-md flex flex-col items-center justify-center cursor-pointer hover-elevate transition-colors text-muted-foreground"
+                    >
+                      <Image className="w-8 h-8 mb-2 opacity-50" />
+                      <span className="text-xs">新增照片</span>
+                      <input
+                        id="image-upload-edit"
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        multiple
+                        className="sr-only"
+                        onChange={handleImageUpload}
+                        disabled={isAnyImageUploading}
+                        data-testid="input-image-upload"
+                      />
+                    </label>
                   )}
-                  <input
-                    id="image-upload-edit"
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp"
-                    className="sr-only"
-                    onChange={handleImageUpload}
-                    disabled={isUploading}
-                    data-testid="input-image-upload"
-                  />
-                </label>
+                </div>
+                <p className="text-xs text-muted-foreground mt-3">支援 JPG、PNG、WebP，每張最大 10MB</p>
               </CardContent>
             </Card>
 
@@ -485,11 +540,40 @@ export default function EditRecipe() {
               </CardContent>
             </Card>
 
+            <Card>
+              <CardContent className="p-6">
+                <FormField
+                  control={form.control}
+                  name="sourceUrl"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="flex items-center gap-2">
+                        <Link className="w-4 h-4" />
+                        食譜來源
+                      </FormLabel>
+                      <FormControl>
+                        <Input 
+                          type="url"
+                          placeholder="例如：https://youtube.com/watch?v=..." 
+                          {...field}
+                          data-testid="input-source-url"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                      <p className="text-xs text-muted-foreground">
+                        可填入原始食譜的影片或網誌連結
+                      </p>
+                    </FormItem>
+                  )}
+                />
+              </CardContent>
+            </Card>
+
             <div className="sticky bottom-0 bg-background/95 backdrop-blur-sm py-4 border-t -mx-4 px-4">
               <Button 
                 type="submit" 
                 className="w-full"
-                disabled={updateRecipeMutation.isPending || isUploading}
+                disabled={updateRecipeMutation.isPending || isAnyImageUploading}
                 data-testid="button-save-recipe"
               >
                 {updateRecipeMutation.isPending ? (
