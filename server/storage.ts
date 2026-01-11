@@ -125,7 +125,16 @@ export class MemStorage implements IStorage {
 
     sampleRecipes.forEach(recipe => {
       const id = randomUUID();
-      this.recipes.set(id, { ...recipe, id });
+      const fullRecipe: Recipe = {
+        id,
+        name: recipe.name,
+        imageUrl: recipe.imageUrl ?? null,
+        ingredients: recipe.ingredients,
+        steps: recipe.steps,
+        servings: recipe.servings ?? null,
+        cookTime: recipe.cookTime ?? null,
+      };
+      this.recipes.set(id, fullRecipe);
     });
   }
 
@@ -156,7 +165,15 @@ export class MemStorage implements IStorage {
 
   async createRecipe(insertRecipe: InsertRecipe): Promise<Recipe> {
     const id = randomUUID();
-    const recipe: Recipe = { ...insertRecipe, id };
+    const recipe: Recipe = {
+      id,
+      name: insertRecipe.name,
+      imageUrl: insertRecipe.imageUrl ?? null,
+      ingredients: insertRecipe.ingredients,
+      steps: insertRecipe.steps,
+      servings: insertRecipe.servings ?? null,
+      cookTime: insertRecipe.cookTime ?? null,
+    };
     this.recipes.set(id, recipe);
     return recipe;
   }
