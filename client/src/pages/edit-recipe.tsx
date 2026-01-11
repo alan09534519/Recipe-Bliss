@@ -301,27 +301,27 @@ export default function EditRecipe() {
                   <span className="text-sm text-muted-foreground">{images.length}/{MAX_IMAGES}</span>
                 </div>
                 
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-2 pr-2">
                   {images.map((image, index) => (
                     <div 
                       key={image.id} 
-                      className="relative aspect-square rounded-md overflow-hidden border bg-muted"
+                      className="relative aspect-square rounded-md border bg-muted"
                     >
                       <img 
                         src={image.preview} 
                         alt={`照片 ${index + 1}`}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-cover rounded-md"
                       />
                       {image.uploading ? (
-                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-md">
                           <Loader2 className="w-6 h-6 animate-spin text-white" />
                         </div>
                       ) : (
                         <Button
                           type="button"
                           size="icon"
-                          variant="secondary"
-                          className="absolute top-1 right-1 h-7 w-7"
+                          variant="destructive"
+                          className="absolute -top-2 -right-2 h-8 w-8 rounded-full shadow-lg z-10"
                           onClick={() => removeImage(image.id)}
                           data-testid={`button-remove-image-${index}`}
                         >
