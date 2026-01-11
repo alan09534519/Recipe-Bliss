@@ -1,9 +1,10 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowLeft, Clock, Users } from "lucide-react";
+import { ArrowLeft, Clock, Users, Pencil } from "lucide-react";
 import type { Recipe } from "@shared/schema";
 import { useState } from "react";
+import { useLocation } from "wouter";
 
 interface RecipeDetailProps {
   recipe: Recipe;
@@ -11,6 +12,7 @@ interface RecipeDetailProps {
 }
 
 export function RecipeDetail({ recipe, onBack }: RecipeDetailProps) {
+  const [, setLocation] = useLocation();
   const [checkedIngredients, setCheckedIngredients] = useState<Set<number>>(new Set());
 
   const toggleIngredient = (index: number) => {
@@ -63,6 +65,16 @@ export function RecipeDetail({ recipe, onBack }: RecipeDetailProps) {
           data-testid="button-back"
         >
           <ArrowLeft className="w-5 h-5" />
+        </Button>
+        
+        <Button
+          size="icon"
+          variant="secondary"
+          className="absolute top-4 right-4 bg-background/80 backdrop-blur-sm"
+          onClick={() => setLocation(`/edit/${recipe.id}`)}
+          data-testid="button-edit-recipe"
+        >
+          <Pencil className="w-5 h-5" />
         </Button>
       </div>
 

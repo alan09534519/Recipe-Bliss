@@ -1,6 +1,6 @@
-import { useState } from "react";
-import { useLocation } from "wouter";
-import { useMutation } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
+import { useLocation, useParams } from "wouter";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -26,10 +26,10 @@ import {
 } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { ArrowLeft, Plus, Trash2, GripVertical, Upload, Image } from "lucide-react";
-import { RECIPE_CATEGORIES } from "@shared/schema";
+import { ArrowLeft, Plus, Trash2, Image, Save, Loader2 } from "lucide-react";
+import { RECIPE_CATEGORIES, type Recipe } from "@shared/schema";
 
-const addRecipeSchema = z.object({
+const editRecipeSchema = z.object({
   name: z.string().min(1, "請輸入菜名"),
   category: z.string().optional(),
   servings: z.coerce.number().min(1, "至少1人份").max(20, "最多20人份"),
@@ -42,15 +42,21 @@ const addRecipeSchema = z.object({
   })).min(1, "請至少輸入一個步驟"),
 });
 
-type AddRecipeForm = z.infer<typeof addRecipeSchema>;
+type EditRecipeForm = z.infer<typeof editRecipeSchema>;
 
-export default function AddRecipe() {
+export default function EditRecipe() {
+  const params = useParams<{ id: string }>();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [imagePreview, setImagePreview] = useState<string | null>(null);
 
-  const form = useForm<AddRecipeForm>({
-    resolver: zodResolver(addRecipeSchema),
+  const { data: recipe, isLoading, error } = useQuery<Recipe>({
+    queryKey: ["/api/recipes", params.id],
+    enabled: !!params.id,
+  });
+
+  const form = useForm<EditRecipeForm>({
+    resolver: zodResolver(editRecipeSchema),
     defaultValues: {
       name: "",
       category: undefined,
@@ -60,6 +66,20 @@ export default function AddRecipe() {
       steps: [{ value: "" }],
     },
   });
+
+  useEffect(() => {
+    if (recipe) {
+      form.reset({
+        name: recipe.name,
+        category: recipe.category || undefined,
+        servings: recipe.servings || 2,
+        cookTime: recipe.cookTime || "",
+        ingredients: recipe.ingredients.map(i => ({ value: i })),
+        steps: recipe.steps.map(s => ({ value: s })),
+      });
+      setImagePreview(recipe.imageUrl || null);
+    }
+  }, [recipe, form]);
 
   const ingredientsArray = useFieldArray({
     control: form.control,
@@ -71,8 +91,8 @@ export default function AddRecipe() {
     name: "steps",
   });
 
-  const createRecipeMutation = useMutation({
-    mutationFn: async (data: AddRecipeForm) => {
+  const updateRecipeMutation = useMutation({
+    mutationFn: async (data: EditRecipeForm) => {
       const payload = {
         name: data.name,
         category: data.category || null,
@@ -82,21 +102,22 @@ export default function AddRecipe() {
         steps: data.steps.map(s => s.value),
         imageUrl: imagePreview,
       };
-      const response = await apiRequest("POST", "/api/recipes", payload);
+      const response = await apiRequest("PATCH", `/api/recipes/${params.id}`, payload);
       return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/recipes"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/recipes", params.id] });
       toast({
         title: "成功！",
-        description: "食譜已成功新增",
+        description: "食譜已成功更新",
       });
       setLocation("/");
     },
     onError: () => {
       toast({
         title: "錯誤",
-        description: "新增食譜時發生錯誤，請稍後再試",
+        description: "更新食譜時發生錯誤，請稍後再試",
         variant: "destructive",
       });
     },
@@ -141,9 +162,28 @@ export default function AddRecipe() {
     reader.readAsDataURL(file);
   };
 
-  const onSubmit = (data: AddRecipeForm) => {
-    createRecipeMutation.mutate(data);
+  const onSubmit = (data: EditRecipeForm) => {
+    updateRecipeMutation.mutate(data);
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (error || !recipe) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4">
+        <p className="text-muted-foreground">找不到這個食譜</p>
+        <Button onClick={() => setLocation("/")} data-testid="button-back-home">
+          返回首頁
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -158,7 +198,7 @@ export default function AddRecipe() {
             >
               <ArrowLeft className="w-5 h-5" />
             </Button>
-            <h1 className="font-serif text-xl font-bold">新增食譜</h1>
+            <h1 className="font-serif text-xl font-bold">編輯食譜</h1>
           </div>
         </div>
       </header>
@@ -168,15 +208,15 @@ export default function AddRecipe() {
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <Card>
               <CardContent className="p-6">
-                <Label htmlFor="image-upload" className="text-base font-semibold mb-4 block">食譜照片</Label>
+                <Label htmlFor="image-upload-edit" className="text-base font-semibold mb-4 block">食譜照片</Label>
                 <label 
-                  htmlFor="image-upload"
+                  htmlFor="image-upload-edit"
                   className="block border-2 border-dashed rounded-md p-8 text-center cursor-pointer hover-elevate transition-colors focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2"
                   tabIndex={0}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
                       e.preventDefault();
-                      document.getElementById("image-upload")?.click();
+                      document.getElementById("image-upload-edit")?.click();
                     }
                   }}
                 >
@@ -210,7 +250,7 @@ export default function AddRecipe() {
                     </div>
                   )}
                   <input
-                    id="image-upload"
+                    id="image-upload-edit"
                     type="file"
                     accept="image/jpeg,image/png,image/webp"
                     className="sr-only"
@@ -250,7 +290,7 @@ export default function AddRecipe() {
                         <FormLabel>分類</FormLabel>
                         <Select 
                           onValueChange={field.onChange} 
-                          defaultValue={field.value}
+                          value={field.value}
                         >
                           <FormControl>
                             <SelectTrigger data-testid="select-category">
@@ -303,7 +343,7 @@ export default function AddRecipe() {
                         <Input 
                           placeholder="例如：30 分鐘" 
                           {...field}
-                          data-testid="input-cooktime"
+                          data-testid="input-cook-time"
                         />
                       </FormControl>
                       <FormMessage />
@@ -325,41 +365,41 @@ export default function AddRecipe() {
                     data-testid="button-add-ingredient"
                   >
                     <Plus className="w-4 h-4 mr-1" />
-                    新增
+                    新增食材
                   </Button>
                 </div>
                 <div className="space-y-3">
                   {ingredientsArray.fields.map((field, index) => (
-                    <div key={field.id} className="flex items-center gap-2">
-                      <GripVertical className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                      <FormField
-                        control={form.control}
-                        name={`ingredients.${index}.value`}
-                        render={({ field }) => (
-                          <FormItem className="flex-1">
+                    <FormField
+                      key={field.id}
+                      control={form.control}
+                      name={`ingredients.${index}.value`}
+                      render={({ field }) => (
+                        <FormItem>
+                          <div className="flex gap-2">
                             <FormControl>
                               <Input 
-                                placeholder="例如：雞蛋 3顆" 
+                                placeholder={`食材 ${index + 1}（例如：雞蛋 2顆）`}
                                 {...field}
                                 data-testid={`input-ingredient-${index}`}
                               />
                             </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      {ingredientsArray.fields.length > 1 && (
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => ingredientsArray.remove(index)}
-                          data-testid={`button-remove-ingredient-${index}`}
-                        >
-                          <Trash2 className="w-4 h-4 text-muted-foreground" />
-                        </Button>
+                            {ingredientsArray.fields.length > 1 && (
+                              <Button
+                                type="button"
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => ingredientsArray.remove(index)}
+                                data-testid={`button-remove-ingredient-${index}`}
+                              >
+                                <Trash2 className="w-4 h-4 text-muted-foreground" />
+                              </Button>
+                            )}
+                          </div>
+                          <FormMessage />
+                        </FormItem>
                       )}
-                    </div>
+                    />
                   ))}
                 </div>
               </CardContent>
@@ -377,61 +417,70 @@ export default function AddRecipe() {
                     data-testid="button-add-step"
                   >
                     <Plus className="w-4 h-4 mr-1" />
-                    新增
+                    新增步驟
                   </Button>
                 </div>
                 <div className="space-y-4">
                   {stepsArray.fields.map((field, index) => (
-                    <div key={field.id} className="flex gap-3">
-                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-semibold text-sm">
-                        {index + 1}
-                      </div>
-                      <div className="flex-1">
-                        <FormField
-                          control={form.control}
-                          name={`steps.${index}.value`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormControl>
-                                <Textarea 
-                                  placeholder="描述這個步驟..." 
-                                  className="min-h-20 resize-none"
-                                  {...field}
-                                  data-testid={`input-step-${index}`}
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </div>
-                      {stepsArray.fields.length > 1 && (
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => stepsArray.remove(index)}
-                          className="flex-shrink-0"
-                          data-testid={`button-remove-step-${index}`}
-                        >
-                          <Trash2 className="w-4 h-4 text-muted-foreground" />
-                        </Button>
+                    <FormField
+                      key={field.id}
+                      control={form.control}
+                      name={`steps.${index}.value`}
+                      render={({ field }) => (
+                        <FormItem>
+                          <div className="flex gap-2">
+                            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm font-medium">
+                              {index + 1}
+                            </div>
+                            <FormControl>
+                              <Textarea 
+                                placeholder={`步驟 ${index + 1} 的說明...`}
+                                className="min-h-[80px] resize-none"
+                                {...field}
+                                data-testid={`input-step-${index}`}
+                              />
+                            </FormControl>
+                            {stepsArray.fields.length > 1 && (
+                              <Button
+                                type="button"
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => stepsArray.remove(index)}
+                                data-testid={`button-remove-step-${index}`}
+                              >
+                                <Trash2 className="w-4 h-4 text-muted-foreground" />
+                              </Button>
+                            )}
+                          </div>
+                          <FormMessage />
+                        </FormItem>
                       )}
-                    </div>
+                    />
                   ))}
                 </div>
               </CardContent>
             </Card>
 
-            <Button 
-              type="submit" 
-              className="w-full" 
-              size="lg"
-              disabled={createRecipeMutation.isPending}
-              data-testid="button-submit-recipe"
-            >
-              {createRecipeMutation.isPending ? "儲存中..." : "儲存食譜"}
-            </Button>
+            <div className="sticky bottom-0 bg-background/95 backdrop-blur-sm py-4 border-t -mx-4 px-4">
+              <Button 
+                type="submit" 
+                className="w-full"
+                disabled={updateRecipeMutation.isPending}
+                data-testid="button-save-recipe"
+              >
+                {updateRecipeMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    儲存中...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4 mr-2" />
+                    儲存變更
+                  </>
+                )}
+              </Button>
+            </div>
           </form>
         </Form>
       </main>
