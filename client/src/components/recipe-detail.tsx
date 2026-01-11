@@ -1,10 +1,24 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowLeft, Clock, Users, Pencil } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { ArrowLeft, Clock, Users, Pencil, Trash2, Loader2 } from "lucide-react";
 import type { Recipe } from "@shared/schema";
 import { useState } from "react";
 import { useLocation } from "wouter";
+import { useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 interface RecipeDetailProps {
   recipe: Recipe;
@@ -13,7 +27,29 @@ interface RecipeDetailProps {
 
 export function RecipeDetail({ recipe, onBack }: RecipeDetailProps) {
   const [, setLocation] = useLocation();
+  const { toast } = useToast();
   const [checkedIngredients, setCheckedIngredients] = useState<Set<number>>(new Set());
+
+  const deleteRecipeMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("DELETE", `/api/recipes/${recipe.id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/recipes"] });
+      toast({
+        title: "刪除成功",
+        description: `「${recipe.name}」已被刪除`,
+      });
+      setLocation("/");
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "刪除失敗",
+        description: error.message || "無法刪除食譜，請稍後再試",
+        variant: "destructive",
+      });
+    },
+  });
 
   const toggleIngredient = (index: number) => {
     const newChecked = new Set(checkedIngredients);
@@ -67,15 +103,56 @@ export function RecipeDetail({ recipe, onBack }: RecipeDetailProps) {
           <ArrowLeft className="w-5 h-5" />
         </Button>
         
-        <Button
-          size="icon"
-          variant="secondary"
-          className="absolute top-4 right-4 bg-background/80 backdrop-blur-sm"
-          onClick={() => setLocation(`/edit/${recipe.id}`)}
-          data-testid="button-edit-recipe"
-        >
-          <Pencil className="w-5 h-5" />
-        </Button>
+        <div className="absolute top-4 right-4 flex gap-2">
+          <Button
+            size="icon"
+            variant="secondary"
+            className="bg-background/80 backdrop-blur-sm"
+            onClick={() => setLocation(`/edit/${recipe.id}`)}
+            data-testid="button-edit-recipe"
+          >
+            <Pencil className="w-5 h-5" />
+          </Button>
+          
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                size="icon"
+                variant="secondary"
+                className="bg-background/80 backdrop-blur-sm text-destructive hover:text-destructive"
+                data-testid="button-delete-recipe"
+              >
+                <Trash2 className="w-5 h-5" />
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>確定要刪除這道食譜嗎？</AlertDialogTitle>
+                <AlertDialogDescription>
+                  這個動作無法復原。刪除後，「{recipe.name}」將會永久從您的食譜庫中移除。
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel data-testid="button-cancel-delete">取消</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => deleteRecipeMutation.mutate()}
+                  disabled={deleteRecipeMutation.isPending}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  data-testid="button-confirm-delete"
+                >
+                  {deleteRecipeMutation.isPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      刪除中...
+                    </>
+                  ) : (
+                    "確定刪除"
+                  )}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
       </div>
 
       <div className="max-w-3xl mx-auto px-4 pb-8">
