@@ -17,6 +17,9 @@ export const insertUserSchema = createInsertSchema(users).pick({
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 
+export const RECIPE_CATEGORIES = ["主食", "湯品", "小菜", "甜點", "飲品"] as const;
+export type RecipeCategory = typeof RECIPE_CATEGORIES[number];
+
 export const recipes = pgTable("recipes", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
@@ -25,6 +28,7 @@ export const recipes = pgTable("recipes", {
   steps: text("steps").array().notNull(),
   servings: integer("servings").default(2),
   cookTime: text("cook_time"),
+  category: text("category"),
 });
 
 export const insertRecipeSchema = createInsertSchema(recipes).omit({

@@ -53,7 +53,12 @@ export function RecipeCard({ recipe, onClick }: RecipeCardProps) {
         >
           {recipe.name}
         </h3>
-        <div className="flex items-center gap-4 text-sm text-muted-foreground">
+        <div className="flex items-center flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+          {recipe.category && (
+            <Badge variant="outline" className="text-xs" data-testid={`badge-category-${recipe.id}`}>
+              {recipe.category}
+            </Badge>
+          )}
           {recipe.servings && (
             <div className="flex items-center gap-1.5">
               <Users className="w-4 h-4" />

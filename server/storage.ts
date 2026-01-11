@@ -38,7 +38,8 @@ export class MemStorage implements IStorage {
           "撒上蔥花即可起鍋。"
         ],
         servings: 2,
-        cookTime: "15 分鐘"
+        cookTime: "15 分鐘",
+        category: "主食"
       },
       {
         name: "日式咖哩飯",
@@ -55,7 +56,8 @@ export class MemStorage implements IStorage {
           "盛飯淋上咖哩即完成。"
         ],
         servings: 2,
-        cookTime: "45 分鐘"
+        cookTime: "45 分鐘",
+        category: "主食"
       },
       {
         name: "蒜香義大利麵",
@@ -71,7 +73,8 @@ export class MemStorage implements IStorage {
           "撒上巴西里即可享用。"
         ],
         servings: 2,
-        cookTime: "20 分鐘"
+        cookTime: "20 分鐘",
+        category: "主食"
       },
       {
         name: "味噌湯",
@@ -87,7 +90,8 @@ export class MemStorage implements IStorage {
           "撒上蔥花即可上桌。"
         ],
         servings: 2,
-        cookTime: "10 分鐘"
+        cookTime: "10 分鐘",
+        category: "湯品"
       },
       {
         name: "蜂蜜檸檬雞翅",
@@ -103,7 +107,8 @@ export class MemStorage implements IStorage {
           "烤至表面金黃焦糖化即完成。"
         ],
         servings: 2,
-        cookTime: "40 分鐘"
+        cookTime: "40 分鐘",
+        category: "小菜"
       },
       {
         name: "麻婆豆腐",
@@ -119,7 +124,40 @@ export class MemStorage implements IStorage {
           "撒上花椒粉和蔥花即可。"
         ],
         servings: 2,
-        cookTime: "20 分鐘"
+        cookTime: "20 分鐘",
+        category: "主食"
+      },
+      {
+        name: "涼拌小黃瓜",
+        imageUrl: null,
+        ingredients: ["小黃瓜 2條", "蒜末 1大匙", "醬油 1大匙", "香油 1小匙", "白醋 1小匙", "辣椒 少許"],
+        steps: [
+          "小黃瓜洗淨，用刀背拍扁後切段。",
+          "加入少許鹽醃製10分鐘。",
+          "將蒜末、醬油、香油、白醋混合成醬汁。",
+          "瀝乾小黃瓜的水分。",
+          "淋上醬汁拌勻，撒上辣椒。",
+          "冷藏15分鐘後更入味。"
+        ],
+        servings: 2,
+        cookTime: "30 分鐘",
+        category: "小菜"
+      },
+      {
+        name: "紅豆湯",
+        imageUrl: null,
+        ingredients: ["紅豆 200g", "冰糖 80g", "水 1000ml"],
+        steps: [
+          "紅豆洗淨，浸泡4小時或隔夜。",
+          "將紅豆和水放入鍋中。",
+          "大火煮滾後轉小火燉煮1小時。",
+          "加入冰糖攪拌至溶化。",
+          "繼續煮5分鐘即可。",
+          "可熱食或冷藏後享用。"
+        ],
+        servings: 4,
+        cookTime: "1.5 小時",
+        category: "甜點"
       }
     ];
 
@@ -133,6 +171,7 @@ export class MemStorage implements IStorage {
         steps: recipe.steps,
         servings: recipe.servings ?? null,
         cookTime: recipe.cookTime ?? null,
+        category: recipe.category ?? null,
       };
       this.recipes.set(id, fullRecipe);
     });
@@ -173,6 +212,7 @@ export class MemStorage implements IStorage {
       steps: insertRecipe.steps,
       servings: insertRecipe.servings ?? null,
       cookTime: insertRecipe.cookTime ?? null,
+      category: insertRecipe.category ?? null,
     };
     this.recipes.set(id, recipe);
     return recipe;
