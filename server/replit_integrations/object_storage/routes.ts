@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
+import sharp from "sharp";
 
 /**
  * Register object storage routes for file uploads.
@@ -80,6 +81,71 @@ export function registerObjectStorageRoutes(app: Express): void {
         return res.status(404).json({ error: "Object not found" });
       }
       return res.status(500).json({ error: "Failed to serve object" });
+    }
+  });
+
+  /**
+   * Serve thumbnail version of uploaded images.
+   *
+   * GET /thumbnails/:objectPath(*)
+   * Query params:
+   *   - w: width (default 400)
+   *   - h: height (default 300)
+   *   - q: quality (default 80)
+   *
+   * This creates optimized thumbnails for faster loading on list pages.
+   */
+  app.get("/thumbnails/:objectPath(*)", async (req, res) => {
+    try {
+      const objectPath = `/objects/${req.params.objectPath}`;
+      const objectFile = await objectStorageService.getObjectEntityFile(objectPath);
+      
+      const width = parseInt(req.query.w as string) || 400;
+      const height = parseInt(req.query.h as string) || 300;
+      const quality = parseInt(req.query.q as string) || 80;
+      
+      // Get the file as a buffer
+      const [metadata] = await objectFile.getMetadata();
+      const contentType = metadata.contentType || "application/octet-stream";
+      
+      // Only process images
+      if (!contentType.startsWith("image/")) {
+        await objectStorageService.downloadObject(objectFile, res);
+        return;
+      }
+      
+      // Stream the original file
+      const chunks: Buffer[] = [];
+      const stream = objectFile.createReadStream();
+      
+      for await (const chunk of stream) {
+        chunks.push(chunk as Buffer);
+      }
+      
+      const originalBuffer = Buffer.concat(chunks);
+      
+      // Create thumbnail using sharp
+      const thumbnail = await sharp(originalBuffer)
+        .resize(width, height, {
+          fit: "cover",
+          position: "center",
+        })
+        .jpeg({ quality })
+        .toBuffer();
+      
+      res.set({
+        "Content-Type": "image/jpeg",
+        "Content-Length": thumbnail.length,
+        "Cache-Control": "public, max-age=31536000", // Cache for 1 year
+      });
+      
+      res.send(thumbnail);
+    } catch (error) {
+      console.error("Error serving thumbnail:", error);
+      if (error instanceof ObjectNotFoundError) {
+        return res.status(404).json({ error: "Object not found" });
+      }
+      return res.status(500).json({ error: "Failed to serve thumbnail" });
     }
   });
 }

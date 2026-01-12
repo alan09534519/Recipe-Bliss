@@ -2,20 +2,24 @@ import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { RecipeCard } from "@/components/recipe-card";
+import { RecipeListItem } from "@/components/recipe-list-item";
 import { RecipeDetail } from "@/components/recipe-detail";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Search, UtensilsCrossed, X } from "lucide-react";
+import { Plus, Search, UtensilsCrossed, X, LayoutGrid, List } from "lucide-react";
 import type { Recipe } from "@shared/schema";
 import { RECIPE_CATEGORIES } from "@shared/schema";
+
+type ViewMode = "grid" | "list";
 
 export default function Home() {
   const [, setLocation] = useLocation();
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>("grid");
 
   const { data: recipes, isLoading } = useQuery<Recipe[]>({
     queryKey: ["/api/recipes"],
@@ -93,26 +97,46 @@ export default function Home() {
             )}
           </div>
           
-          <div className="flex flex-wrap gap-2">
-            <Badge
-              variant={selectedCategory === null ? "default" : "outline"}
-              className="cursor-pointer"
-              onClick={() => setSelectedCategory(null)}
-              data-testid="badge-category-all"
-            >
-              全部
-            </Badge>
-            {RECIPE_CATEGORIES.map(category => (
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex flex-wrap gap-2 flex-1">
               <Badge
-                key={category}
-                variant={selectedCategory === category ? "default" : "outline"}
+                variant={selectedCategory === null ? "default" : "outline"}
                 className="cursor-pointer"
-                onClick={() => handleCategoryClick(category)}
-                data-testid={`badge-category-${category}`}
+                onClick={() => setSelectedCategory(null)}
+                data-testid="badge-category-all"
               >
-                {category}
+                全部
               </Badge>
-            ))}
+              {RECIPE_CATEGORIES.map(category => (
+                <Badge
+                  key={category}
+                  variant={selectedCategory === category ? "default" : "outline"}
+                  className="cursor-pointer"
+                  onClick={() => handleCategoryClick(category)}
+                  data-testid={`badge-category-${category}`}
+                >
+                  {category}
+                </Badge>
+              ))}
+            </div>
+            <div className="flex items-center gap-1 flex-shrink-0">
+              <Button
+                size="icon"
+                variant={viewMode === "grid" ? "default" : "ghost"}
+                onClick={() => setViewMode("grid")}
+                data-testid="button-view-grid"
+              >
+                <LayoutGrid className="w-4 h-4" />
+              </Button>
+              <Button
+                size="icon"
+                variant={viewMode === "list" ? "default" : "ghost"}
+                onClick={() => setViewMode("list")}
+                data-testid="button-view-list"
+              >
+                <List className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
         </div>
 

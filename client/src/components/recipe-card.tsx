@@ -10,10 +10,15 @@ interface RecipeCardProps {
 
 export function RecipeCard({ recipe, onClick }: RecipeCardProps) {
   const imageUrls = recipe.imageUrls || [];
-  const primaryImage = imageUrls.length > 0 
-    ? (imageUrls[0].startsWith('/objects/') ? imageUrls[0] : `/objects/${imageUrls[0]}`)
-    : null;
   const hasMultipleImages = imageUrls.length > 1;
+  
+  // Get thumbnail URL for faster loading
+  const getThumbnailUrl = (url: string) => {
+    const objectPath = url.startsWith('/objects/') ? url.slice(9) : url;
+    return `/thumbnails/${objectPath}?w=400&h=300&q=75`;
+  };
+  
+  const primaryImage = imageUrls.length > 0 ? getThumbnailUrl(imageUrls[0]) : null;
 
   return (
     <Card 
