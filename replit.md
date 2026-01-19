@@ -10,6 +10,15 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes (2026-01-19)
 
+### v1.3.0 - Drag and Drop Reordering
+- **SortableItem Component**: Reusable drag handle component using @dnd-kit library
+  - Visual drag handle (GripVertical icon) on left side of each item
+  - Distance constraint (8px) to prevent accidental drags
+  - Keyboard navigation support (Tab, Space, Arrow keys)
+- **Ingredients Drag-and-Drop**: Reorder ingredients by dragging in add/edit recipe forms
+- **Steps Drag-and-Drop**: Reorder cooking steps by dragging in add/edit recipe forms
+- **Libraries Used**: @dnd-kit/core, @dnd-kit/sortable, @dnd-kit/utilities
+
 ### v1.2.0 - Image Browsing Experience
 - **ImageLightbox Component**: Full-screen image viewer with zoom and keyboard navigation
   - Click images to open lightbox, ESC to close, arrow keys to navigate

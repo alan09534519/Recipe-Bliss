@@ -33,10 +33,11 @@ export function SortableItem({ id, children, disabled }: SortableItemProps) {
     >
       <button
         type="button"
-        className={`touch-none flex-shrink-0 p-1 rounded hover:bg-muted transition-colors ${disabled ? "opacity-30 cursor-not-allowed" : "cursor-grab active:cursor-grabbing"}`}
+        className={`touch-none flex-shrink-0 min-w-[44px] min-h-[44px] p-2.5 rounded hover:bg-muted transition-colors flex items-center justify-center ${disabled ? "opacity-30 cursor-not-allowed" : "cursor-grab active:cursor-grabbing"}`}
         {...attributes}
         {...listeners}
         disabled={disabled}
+        aria-label="拖曳排序"
         data-testid={`drag-handle-${id}`}
       >
         <GripVertical className="w-4 h-4 text-muted-foreground" />
