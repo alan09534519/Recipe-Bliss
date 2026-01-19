@@ -10,6 +10,14 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes (2026-01-19)
 
+### v1.2.0 - Image Browsing Experience
+- **ImageLightbox Component**: Full-screen image viewer with zoom and keyboard navigation
+  - Click images to open lightbox, ESC to close, arrow keys to navigate
+  - Zoom in/out with click or button
+  - Touch swipe support for mobile
+- **Image Slide Animations**: Smooth fade and slide transitions when switching images
+- **Hover Overlay**: Expand icon appears on image hover indicating click-to-enlarge
+
 ### v1.1.0 - Performance Optimization
 - **Thumbnail API**: New `/thumbnails/:objectPath` endpoint with Sharp library for on-the-fly image resizing
   - Streaming processing (GCS → Sharp → Response) to avoid memory issues

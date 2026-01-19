@@ -12,13 +12,14 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Clock, Users, Pencil, Trash2, Loader2, ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
+import { ArrowLeft, Clock, Users, Pencil, Trash2, Loader2, ChevronLeft, ChevronRight, ExternalLink, Expand } from "lucide-react";
 import type { Recipe } from "@shared/schema";
 import { useState, useRef } from "react";
 import { useLocation } from "wouter";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { ImageLightbox } from "@/components/image-lightbox";
 
 interface RecipeDetailProps {
   recipe: Recipe;
@@ -30,8 +31,12 @@ export function RecipeDetail({ recipe, onBack }: RecipeDetailProps) {
   const { toast } = useToast();
   const [checkedIngredients, setCheckedIngredients] = useState<Set<number>>(new Set());
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [isAnimating, setIsAnimating] = useState(false);
+  const [slideDirection, setSlideDirection] = useState<"left" | "right" | null>(null);
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   const touchStartX = useRef<number | null>(null);
   const touchEndX = useRef<number | null>(null);
+  const didSwipe = useRef(false);
 
   const imageUrls = recipe.imageUrls || [];
   const hasImages = imageUrls.length > 0;
@@ -70,11 +75,43 @@ export function RecipeDetail({ recipe, onBack }: RecipeDetailProps) {
   };
 
   const goToPreviousImage = () => {
-    setCurrentImageIndex((prev) => (prev === 0 ? imageUrls.length - 1 : prev - 1));
+    if (isAnimating || !hasMultipleImages) return;
+    setIsAnimating(true);
+    setSlideDirection("right");
+    setTimeout(() => {
+      setCurrentImageIndex((prev) => (prev === 0 ? imageUrls.length - 1 : prev - 1));
+      setTimeout(() => {
+        setIsAnimating(false);
+        setSlideDirection(null);
+      }, 50);
+    }, 150);
   };
 
   const goToNextImage = () => {
-    setCurrentImageIndex((prev) => (prev === imageUrls.length - 1 ? 0 : prev + 1));
+    if (isAnimating || !hasMultipleImages) return;
+    setIsAnimating(true);
+    setSlideDirection("left");
+    setTimeout(() => {
+      setCurrentImageIndex((prev) => (prev === imageUrls.length - 1 ? 0 : prev + 1));
+      setTimeout(() => {
+        setIsAnimating(false);
+        setSlideDirection(null);
+      }, 50);
+    }, 150);
+  };
+
+  const getAnimationClass = () => {
+    if (!slideDirection) return "translate-x-0 opacity-100";
+    if (slideDirection === "left") return "-translate-x-4 opacity-0";
+    return "translate-x-4 opacity-0";
+  };
+
+  const openLightbox = () => {
+    if (didSwipe.current) {
+      didSwipe.current = false;
+      return;
+    }
+    setIsLightboxOpen(true);
   };
 
   const getCurrentImageUrl = () => {
@@ -86,6 +123,7 @@ export function RecipeDetail({ recipe, onBack }: RecipeDetailProps) {
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX;
     touchEndX.current = null;
+    didSwipe.current = false;
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
@@ -100,8 +138,10 @@ export function RecipeDetail({ recipe, onBack }: RecipeDetailProps) {
     const isSwipeRight = distance < -minSwipeDistance;
     
     if (isSwipeLeft && hasMultipleImages) {
+      didSwipe.current = true;
       goToNextImage();
     } else if (isSwipeRight && hasMultipleImages) {
+      didSwipe.current = true;
       goToPreviousImage();
     }
     
@@ -114,24 +154,33 @@ export function RecipeDetail({ recipe, onBack }: RecipeDetailProps) {
       <div className="relative">
         {hasImages ? (
           <div 
-            className="h-64 md:h-96 w-full overflow-hidden relative touch-pan-y"
+            className="h-64 md:h-96 w-full overflow-hidden relative touch-pan-y cursor-pointer group"
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
+            onClick={openLightbox}
+            data-testid="button-open-lightbox"
           >
             <img
               src={getCurrentImageUrl() || ""}
               alt={`${recipe.name} 的照片 ${currentImageIndex + 1}`}
-              className="w-full h-full object-cover select-none pointer-events-none"
+              className={`w-full h-full object-cover select-none pointer-events-none transition-all duration-150 ease-out ${getAnimationClass()}`}
             />
+            
+            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+              <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                <Expand className="w-8 h-8 text-white drop-shadow-lg" />
+              </div>
+            </div>
             
             {hasMultipleImages && (
               <>
                 <Button
                   size="icon"
                   variant="secondary"
-                  className="absolute left-4 top-1/2 -translate-y-1/2 bg-background/80 backdrop-blur-sm"
-                  onClick={goToPreviousImage}
+                  className="absolute left-4 top-1/2 -translate-y-1/2 bg-background/80 backdrop-blur-sm z-10"
+                  onClick={(e) => { e.stopPropagation(); goToPreviousImage(); }}
+                  disabled={isAnimating}
                   data-testid="button-prev-image"
                 >
                   <ChevronLeft className="w-5 h-5" />
@@ -139,21 +188,35 @@ export function RecipeDetail({ recipe, onBack }: RecipeDetailProps) {
                 <Button
                   size="icon"
                   variant="secondary"
-                  className="absolute right-4 top-1/2 -translate-y-1/2 bg-background/80 backdrop-blur-sm"
-                  onClick={goToNextImage}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 bg-background/80 backdrop-blur-sm z-10"
+                  onClick={(e) => { e.stopPropagation(); goToNextImage(); }}
+                  disabled={isAnimating}
                   data-testid="button-next-image"
                 >
                   <ChevronRight className="w-5 h-5" />
                 </Button>
                 
-                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-10">
                   {imageUrls.map((_, index) => (
                     <button
                       key={index}
-                      className={`w-2 h-2 rounded-full transition-colors ${
-                        index === currentImageIndex ? "bg-white" : "bg-white/50"
+                      className={`w-2 h-2 rounded-full transition-all duration-200 ${
+                        index === currentImageIndex ? "bg-white scale-125" : "bg-white/50 hover:bg-white/70"
                       }`}
-                      onClick={() => setCurrentImageIndex(index)}
+                      onClick={(e) => { 
+                        e.stopPropagation(); 
+                        if (index !== currentImageIndex && !isAnimating) {
+                          setSlideDirection(index > currentImageIndex ? "left" : "right");
+                          setIsAnimating(true);
+                          setTimeout(() => {
+                            setCurrentImageIndex(index);
+                            setTimeout(() => {
+                              setIsAnimating(false);
+                              setSlideDirection(null);
+                            }, 50);
+                          }, 150);
+                        }
+                      }}
                       data-testid={`button-image-dot-${index}`}
                     />
                   ))}
@@ -340,6 +403,15 @@ export function RecipeDetail({ recipe, onBack }: RecipeDetailProps) {
           </Card>
         )}
       </div>
+
+      {hasImages && (
+        <ImageLightbox
+          images={imageUrls}
+          initialIndex={currentImageIndex}
+          isOpen={isLightboxOpen}
+          onClose={() => setIsLightboxOpen(false)}
+        />
+      )}
     </div>
   );
 }
