@@ -29,6 +29,21 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { ArrowLeft, Plus, Trash2, Image, Save, Loader2, X, Link } from "lucide-react";
 import { RECIPE_CATEGORIES, type Recipe } from "@shared/schema";
 import { useUpload } from "@/hooks/use-upload";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { SortableItem } from "@/components/sortable-item";
 
 const MAX_IMAGES = 5;
 
@@ -131,6 +146,39 @@ export default function EditRecipe() {
     control: form.control,
     name: "sourceUrls",
   });
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const handleIngredientsDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      const oldIndex = ingredientsArray.fields.findIndex(f => f.id === active.id);
+      const newIndex = ingredientsArray.fields.findIndex(f => f.id === over.id);
+      if (oldIndex !== -1 && newIndex !== -1) {
+        ingredientsArray.move(oldIndex, newIndex);
+      }
+    }
+  };
+
+  const handleStepsDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      const oldIndex = stepsArray.fields.findIndex(f => f.id === active.id);
+      const newIndex = stepsArray.fields.findIndex(f => f.id === over.id);
+      if (oldIndex !== -1 && newIndex !== -1) {
+        stepsArray.move(oldIndex, newIndex);
+      }
+    }
+  };
 
   const isAnyImageUploading = images.some(img => img.uploading);
 
@@ -462,40 +510,56 @@ export default function EditRecipe() {
                     新增食材
                   </Button>
                 </div>
-                <div className="space-y-3">
-                  {ingredientsArray.fields.map((field, index) => (
-                    <FormField
-                      key={field.id}
-                      control={form.control}
-                      name={`ingredients.${index}.value`}
-                      render={({ field }) => (
-                        <FormItem>
-                          <div className="flex gap-2">
-                            <FormControl>
-                              <Input 
-                                placeholder={`食材 ${index + 1}（例如：雞蛋 2顆）`}
-                                {...field}
-                                data-testid={`input-ingredient-${index}`}
-                              />
-                            </FormControl>
-                            {ingredientsArray.fields.length > 1 && (
-                              <Button
-                                type="button"
-                                size="icon"
-                                variant="ghost"
-                                onClick={() => ingredientsArray.remove(index)}
-                                data-testid={`button-remove-ingredient-${index}`}
-                              >
-                                <Trash2 className="w-4 h-4 text-muted-foreground" />
-                              </Button>
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleIngredientsDragEnd}
+                >
+                  <SortableContext
+                    items={ingredientsArray.fields.map(f => f.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    <div className="space-y-3">
+                      {ingredientsArray.fields.map((field, index) => (
+                        <SortableItem 
+                          key={field.id} 
+                          id={field.id}
+                          disabled={ingredientsArray.fields.length <= 1}
+                        >
+                          <FormField
+                            control={form.control}
+                            name={`ingredients.${index}.value`}
+                            render={({ field }) => (
+                              <FormItem>
+                                <div className="flex gap-2">
+                                  <FormControl>
+                                    <Input 
+                                      placeholder={`食材 ${index + 1}（例如：雞蛋 2顆）`}
+                                      {...field}
+                                      data-testid={`input-ingredient-${index}`}
+                                    />
+                                  </FormControl>
+                                  {ingredientsArray.fields.length > 1 && (
+                                    <Button
+                                      type="button"
+                                      size="icon"
+                                      variant="ghost"
+                                      onClick={() => ingredientsArray.remove(index)}
+                                      data-testid={`button-remove-ingredient-${index}`}
+                                    >
+                                      <Trash2 className="w-4 h-4 text-muted-foreground" />
+                                    </Button>
+                                  )}
+                                </div>
+                                <FormMessage />
+                              </FormItem>
                             )}
-                          </div>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  ))}
-                </div>
+                          />
+                        </SortableItem>
+                      ))}
+                    </div>
+                  </SortableContext>
+                </DndContext>
               </CardContent>
             </Card>
 
@@ -514,26 +578,43 @@ export default function EditRecipe() {
                     新增步驟
                   </Button>
                 </div>
-                <div className="space-y-4">
-                  {stepsArray.fields.map((field, index) => (
-                    <FormField
-                      key={field.id}
-                      control={form.control}
-                      name={`steps.${index}.value`}
-                      render={({ field }) => (
-                        <FormItem>
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleStepsDragEnd}
+                >
+                  <SortableContext
+                    items={stepsArray.fields.map(f => f.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    <div className="space-y-4">
+                      {stepsArray.fields.map((field, index) => (
+                        <SortableItem 
+                          key={field.id} 
+                          id={field.id}
+                          disabled={stepsArray.fields.length <= 1}
+                        >
                           <div className="flex gap-2">
                             <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm font-medium">
                               {index + 1}
                             </div>
-                            <FormControl>
-                              <Textarea 
-                                placeholder={`步驟 ${index + 1} 的說明...`}
-                                className="min-h-[80px] resize-none"
-                                {...field}
-                                data-testid={`input-step-${index}`}
-                              />
-                            </FormControl>
+                            <FormField
+                              control={form.control}
+                              name={`steps.${index}.value`}
+                              render={({ field }) => (
+                                <FormItem className="flex-1">
+                                  <FormControl>
+                                    <Textarea 
+                                      placeholder={`步驟 ${index + 1} 的說明...`}
+                                      className="min-h-[80px] resize-none"
+                                      {...field}
+                                      data-testid={`input-step-${index}`}
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
                             {stepsArray.fields.length > 1 && (
                               <Button
                                 type="button"
@@ -546,12 +627,11 @@ export default function EditRecipe() {
                               </Button>
                             )}
                           </div>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  ))}
-                </div>
+                        </SortableItem>
+                      ))}
+                    </div>
+                  </SortableContext>
+                </DndContext>
               </CardContent>
             </Card>
 

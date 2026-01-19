@@ -29,6 +29,21 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { ArrowLeft, Plus, Trash2, GripVertical, Image, Loader2, X, Link } from "lucide-react";
 import { RECIPE_CATEGORIES } from "@shared/schema";
 import { useUpload } from "@/hooks/use-upload";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { SortableItem } from "@/components/sortable-item";
 
 const MAX_IMAGES = 5;
 
@@ -95,6 +110,39 @@ export default function AddRecipe() {
     control: form.control,
     name: "sourceUrls",
   });
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const handleIngredientsDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      const oldIndex = ingredientsArray.fields.findIndex(f => f.id === active.id);
+      const newIndex = ingredientsArray.fields.findIndex(f => f.id === over.id);
+      if (oldIndex !== -1 && newIndex !== -1) {
+        ingredientsArray.move(oldIndex, newIndex);
+      }
+    }
+  };
+
+  const handleStepsDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      const oldIndex = stepsArray.fields.findIndex(f => f.id === active.id);
+      const newIndex = stepsArray.fields.findIndex(f => f.id === over.id);
+      if (oldIndex !== -1 && newIndex !== -1) {
+        stepsArray.move(oldIndex, newIndex);
+      }
+    }
+  };
 
   const isAnyImageUploading = images.some(img => img.uploading);
 
@@ -406,40 +454,56 @@ export default function AddRecipe() {
                     新增
                   </Button>
                 </div>
-                <div className="space-y-3">
-                  {ingredientsArray.fields.map((field, index) => (
-                    <div key={field.id} className="flex items-center gap-2">
-                      <GripVertical className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                      <FormField
-                        control={form.control}
-                        name={`ingredients.${index}.value`}
-                        render={({ field }) => (
-                          <FormItem className="flex-1">
-                            <FormControl>
-                              <Input 
-                                placeholder="例如：雞蛋 3顆" 
-                                {...field}
-                                data-testid={`input-ingredient-${index}`}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      {ingredientsArray.fields.length > 1 && (
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => ingredientsArray.remove(index)}
-                          data-testid={`button-remove-ingredient-${index}`}
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleIngredientsDragEnd}
+                >
+                  <SortableContext
+                    items={ingredientsArray.fields.map(f => f.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    <div className="space-y-3">
+                      {ingredientsArray.fields.map((field, index) => (
+                        <SortableItem 
+                          key={field.id} 
+                          id={field.id}
+                          disabled={ingredientsArray.fields.length <= 1}
                         >
-                          <Trash2 className="w-4 h-4 text-muted-foreground" />
-                        </Button>
-                      )}
+                          <div className="flex items-center gap-2">
+                            <FormField
+                              control={form.control}
+                              name={`ingredients.${index}.value`}
+                              render={({ field }) => (
+                                <FormItem className="flex-1">
+                                  <FormControl>
+                                    <Input 
+                                      placeholder="例如：雞蛋 3顆" 
+                                      {...field}
+                                      data-testid={`input-ingredient-${index}`}
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            {ingredientsArray.fields.length > 1 && (
+                              <Button
+                                type="button"
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => ingredientsArray.remove(index)}
+                                data-testid={`button-remove-ingredient-${index}`}
+                              >
+                                <Trash2 className="w-4 h-4 text-muted-foreground" />
+                              </Button>
+                            )}
+                          </div>
+                        </SortableItem>
+                      ))}
                     </div>
-                  ))}
-                </div>
+                  </SortableContext>
+                </DndContext>
               </CardContent>
             </Card>
 
@@ -458,46 +522,63 @@ export default function AddRecipe() {
                     新增
                   </Button>
                 </div>
-                <div className="space-y-4">
-                  {stepsArray.fields.map((field, index) => (
-                    <div key={field.id} className="flex gap-3">
-                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-semibold text-sm">
-                        {index + 1}
-                      </div>
-                      <div className="flex-1">
-                        <FormField
-                          control={form.control}
-                          name={`steps.${index}.value`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormControl>
-                                <Textarea 
-                                  placeholder="描述這個步驟..." 
-                                  className="min-h-20 resize-none"
-                                  {...field}
-                                  data-testid={`input-step-${index}`}
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </div>
-                      {stepsArray.fields.length > 1 && (
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => stepsArray.remove(index)}
-                          className="flex-shrink-0"
-                          data-testid={`button-remove-step-${index}`}
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleStepsDragEnd}
+                >
+                  <SortableContext
+                    items={stepsArray.fields.map(f => f.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    <div className="space-y-4">
+                      {stepsArray.fields.map((field, index) => (
+                        <SortableItem 
+                          key={field.id} 
+                          id={field.id}
+                          disabled={stepsArray.fields.length <= 1}
                         >
-                          <Trash2 className="w-4 h-4 text-muted-foreground" />
-                        </Button>
-                      )}
+                          <div className="flex gap-3">
+                            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-semibold text-sm">
+                              {index + 1}
+                            </div>
+                            <div className="flex-1">
+                              <FormField
+                                control={form.control}
+                                name={`steps.${index}.value`}
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormControl>
+                                      <Textarea 
+                                        placeholder="描述這個步驟..." 
+                                        className="min-h-20 resize-none"
+                                        {...field}
+                                        data-testid={`input-step-${index}`}
+                                      />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            </div>
+                            {stepsArray.fields.length > 1 && (
+                              <Button
+                                type="button"
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => stepsArray.remove(index)}
+                                className="flex-shrink-0"
+                                data-testid={`button-remove-step-${index}`}
+                              >
+                                <Trash2 className="w-4 h-4 text-muted-foreground" />
+                              </Button>
+                            )}
+                          </div>
+                        </SortableItem>
+                      ))}
                     </div>
-                  ))}
-                </div>
+                  </SortableContext>
+                </DndContext>
               </CardContent>
             </Card>
 
