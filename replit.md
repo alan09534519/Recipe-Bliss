@@ -8,8 +8,17 @@ This is a **Couple's Recipe Sharing App** - a mobile-first web application for c
 
 Preferred communication style: Simple, everyday language.
 
-## Recent Changes (2026-01-11)
+## Recent Changes (2026-01-19)
 
+### v1.1.0 - Performance Optimization
+- **Thumbnail API**: New `/thumbnails/:objectPath` endpoint with Sharp library for on-the-fly image resizing
+  - Streaming processing (GCS → Sharp → Response) to avoid memory issues
+  - Parameter validation: width/height 10-800px, quality 10-90%, max file size 15MB
+  - 1-year cache headers for optimal performance
+- **View Mode Toggle**: Grid view and list view on homepage with localStorage persistence
+- **RecipeListItem Component**: Compact list view for browsing more recipes at once
+
+### Previous Changes (2026-01-11)
 - **PostgreSQL Database**: Migrated from in-memory storage to PostgreSQL for persistent data
 - **Object Storage**: Integrated Replit Object Storage for image uploads (up to 10MB)
 - **Delete Recipe**: Added delete functionality with confirmation dialog
@@ -49,6 +58,7 @@ Preferred communication style: Simple, everyday language.
 - `DELETE /api/recipes/:id` - Delete recipe
 - `POST /api/uploads/request-url` - Get presigned upload URL
 - `GET /objects/:objectPath` - Serve uploaded files
+- `GET /thumbnails/:objectPath` - Generate resized thumbnails (w, h, q params)
 
 ### Data Storage
 - **Database**: PostgreSQL via Drizzle ORM
@@ -94,6 +104,7 @@ Preferred communication style: Simple, everyday language.
 ### Object Storage
 - **Replit Object Storage**: Cloud file storage for images
 - **@google-cloud/storage**: GCS client for object operations
+- **Sharp**: High-performance image processing for thumbnail generation
 - **Uppy v5**: Frontend file upload component
 
 ### UI Libraries
