@@ -157,15 +157,27 @@ export default function Home() {
                 找到 {filteredRecipes.length} 個食譜
               </p>
             ) : null}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredRecipes.map((recipe) => (
-                <RecipeCard
-                  key={recipe.id}
-                  recipe={recipe}
-                  onClick={() => setSelectedRecipe(recipe)}
-                />
-              ))}
-            </div>
+            {viewMode === "grid" ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredRecipes.map((recipe) => (
+                  <RecipeCard
+                    key={recipe.id}
+                    recipe={recipe}
+                    onClick={() => setSelectedRecipe(recipe)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {filteredRecipes.map((recipe) => (
+                  <RecipeListItem
+                    key={recipe.id}
+                    recipe={recipe}
+                    onClick={() => setSelectedRecipe(recipe)}
+                  />
+                ))}
+              </div>
+            )}
           </>
         ) : recipes && recipes.length > 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">

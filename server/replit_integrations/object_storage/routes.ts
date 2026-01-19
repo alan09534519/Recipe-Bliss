@@ -98,15 +98,60 @@ export function registerObjectStorageRoutes(app: Express): void {
   app.get("/thumbnails/:objectPath(*)", async (req, res) => {
     try {
       const objectPath = `/objects/${req.params.objectPath}`;
-      const objectFile = await objectStorageService.getObjectEntityFile(objectPath);
       
-      const width = parseInt(req.query.w as string) || 400;
-      const height = parseInt(req.query.h as string) || 300;
-      const quality = parseInt(req.query.q as string) || 80;
+      // Validate and clamp parameters to prevent DoS
+      const MIN_SIZE = 10;
+      const MAX_SIZE = 800;
+      const MIN_QUALITY = 10;
+      const MAX_QUALITY = 90;
+      const DEFAULT_WIDTH = 400;
+      const DEFAULT_HEIGHT = 300;
+      const DEFAULT_QUALITY = 75;
+      
+      // Parse and validate width
+      const rawWidth = req.query.w as string;
+      let width = DEFAULT_WIDTH;
+      if (rawWidth !== undefined) {
+        const parsed = parseInt(rawWidth);
+        if (isNaN(parsed) || parsed <= 0) {
+          return res.status(400).json({ error: "Invalid width parameter" });
+        }
+        width = Math.max(MIN_SIZE, Math.min(MAX_SIZE, parsed));
+      }
+      
+      // Parse and validate height
+      const rawHeight = req.query.h as string;
+      let height = DEFAULT_HEIGHT;
+      if (rawHeight !== undefined) {
+        const parsed = parseInt(rawHeight);
+        if (isNaN(parsed) || parsed <= 0) {
+          return res.status(400).json({ error: "Invalid height parameter" });
+        }
+        height = Math.max(MIN_SIZE, Math.min(MAX_SIZE, parsed));
+      }
+      
+      // Parse and validate quality
+      const rawQuality = req.query.q as string;
+      let quality = DEFAULT_QUALITY;
+      if (rawQuality !== undefined) {
+        const parsed = parseInt(rawQuality);
+        if (isNaN(parsed) || parsed <= 0) {
+          return res.status(400).json({ error: "Invalid quality parameter" });
+        }
+        quality = Math.max(MIN_QUALITY, Math.min(MAX_QUALITY, parsed));
+      }
+      
+      const objectFile = await objectStorageService.getObjectEntityFile(objectPath);
       
       // Get the file as a buffer
       const [metadata] = await objectFile.getMetadata();
       const contentType = metadata.contentType || "application/octet-stream";
+      
+      // Reject files larger than 15MB to prevent memory issues
+      const fileSize = parseInt(metadata.size as string) || 0;
+      if (fileSize > 15 * 1024 * 1024) {
+        return res.status(400).json({ error: "File too large for thumbnail generation" });
+      }
       
       // Only process images
       if (!contentType.startsWith("image/")) {
@@ -114,32 +159,31 @@ export function registerObjectStorageRoutes(app: Express): void {
         return;
       }
       
-      // Stream the original file
-      const chunks: Buffer[] = [];
-      const stream = objectFile.createReadStream();
+      // Set response headers before streaming
+      res.set({
+        "Content-Type": "image/jpeg",
+        "Cache-Control": "public, max-age=31536000", // Cache for 1 year
+      });
       
-      for await (const chunk of stream) {
-        chunks.push(chunk as Buffer);
-      }
-      
-      const originalBuffer = Buffer.concat(chunks);
-      
-      // Create thumbnail using sharp
-      const thumbnail = await sharp(originalBuffer)
+      // Stream through sharp for memory-efficient processing
+      const readStream = objectFile.createReadStream();
+      const transformer = sharp()
         .resize(width, height, {
           fit: "cover",
           position: "center",
         })
-        .jpeg({ quality })
-        .toBuffer();
+        .jpeg({ quality });
       
-      res.set({
-        "Content-Type": "image/jpeg",
-        "Content-Length": thumbnail.length,
-        "Cache-Control": "public, max-age=31536000", // Cache for 1 year
-      });
-      
-      res.send(thumbnail);
+      // Pipe: GCS -> Sharp -> Response
+      readStream
+        .pipe(transformer)
+        .pipe(res)
+        .on("error", (err: Error) => {
+          console.error("Stream error:", err);
+          if (!res.headersSent) {
+            res.status(500).json({ error: "Failed to process thumbnail" });
+          }
+        });
     } catch (error) {
       console.error("Error serving thumbnail:", error);
       if (error instanceof ObjectNotFoundError) {
